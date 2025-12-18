@@ -49,8 +49,12 @@ runs:
 import sys
 import yaml
 path = sys.argv[1]
-with open(path, "r", encoding="utf-8") as f:
-    list(yaml.safe_load_all(f))
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        for _ in yaml.safe_load_all(f):
+            pass
+except Exception as exc:
+    raise SystemExit(f"{path}: {exc}")
 PY
           done
         done
