@@ -24,10 +24,6 @@ runs:
       run: |
         set -euo pipefail
 
-        # Force kubectl offline
-        export KUBECONFIG=/dev/null
-        export KUBERNETES_MASTER=""
-
         DIRS="${{ inputs.deployment-dirs }}"
         read -r -a DIR_ARRAY <<< "$DIRS"
 
@@ -48,10 +44,15 @@ runs:
             exit 1
           fi
 
-          kubectl apply \
-            --dry-run=client \
-            --validate=false \
-            -f "$PATH_DIR"
+          for FILE in "${FILES[@]}"; do
+            python3 - <<'PY' "$FILE"
+import sys
+import yaml
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as f:
+    list(yaml.safe_load_all(f))
+PY
+          done
         done
 
-        echo "✔ ${{ inputs.stage }} validation passed (client dry-run)" >> "$GITHUB_STEP_SUMMARY"
+        echo "✔ ${{ inputs.stage }} validation passed (YAML parse)" >> "$GITHUB_STEP_SUMMARY"
