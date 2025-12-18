@@ -1,0 +1,71 @@
+name: Multi-Stage Environment Promotion
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  KUBECTL_VERSION: ${{ vars.KUBECTL_VERSION || 'v1.28.0' }}
+  DEPLOYMENT_DIRS: ${{ vars.DEPLOYMENT_DIRS || '' }}
+  DRY_RUN_MODE: ${{ vars.DRY_RUN_MODE || 'client' }}
+
+jobs:
+  deploy-dev:
+    name: Deploy to DEV
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate manifests (DEV)
+        uses: ./.github/actions/validate-manifests
+        with:
+          stage: DEV
+          deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
+          dry-run-mode: ${{ env.DRY_RUN_MODE }}
+          kubectl-version: ${{ env.KUBECTL_VERSION }}
+
+  deploy-uat:
+    name: Promote to UAT
+    runs-on: ubuntu-latest
+    needs: deploy-dev
+    environment: uat
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate manifests (UAT)
+        uses: ./.github/actions/validate-manifests
+        with:
+          stage: UAT
+          deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
+          dry-run-mode: ${{ env.DRY_RUN_MODE }}
+          kubectl-version: ${{ env.KUBECTL_VERSION }}
+
+  deploy-prod:
+    name: Promote to PROD
+    runs-on: ubuntu-latest
+    needs: deploy-uat
+    environment: prod
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate manifests (PROD)
+        uses: ./.github/actions/validate-manifests
+        with:
+          stage: PROD
+          deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
+          dry-run-mode: ${{ env.DRY_RUN_MODE }}
+          kubectl-version: ${{ env.KUBECTL_VERSION }}
