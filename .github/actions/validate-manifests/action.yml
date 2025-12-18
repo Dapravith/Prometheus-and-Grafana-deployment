@@ -43,7 +43,7 @@ import yaml
 path = sys.argv[1]
 try:
     with open(path, "r", encoding="utf-8") as f:
-        for _ in yaml.compose_all(f):
+        for _ in yaml.safe_load_all(f):
             pass
 except yaml.YAMLError as exc:
     raise SystemExit(f"{path}: {exc}")
