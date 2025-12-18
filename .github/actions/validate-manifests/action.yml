@@ -1,23 +1,13 @@
 name: Validate Kubernetes Manifests
-description: Validate Kubernetes manifests using kubectl dry-run (client-side).
+description: Offline Kubernetes manifest validation (CI-safe).
 
 inputs:
   stage:
-    description: Environment stage label for summary output.
     required: true
-
   kubectl-version:
-    description: Kubectl version to install.
     default: v1.28.0
-
   deployment-dirs:
-    description: Space-separated list of manifest directories under kubernetes/.
-    required: false
     default: namespaces prometheus grafana loki mimir alloy opentelemetry ingress
-
-  dry-run-mode:
-    description: Kubectl dry-run mode (client or server).
-    default: client
 
 runs:
   using: composite
@@ -32,26 +22,20 @@ runs:
       run: |
         set -euo pipefail
 
-        DEFAULT_DIRS="namespaces prometheus grafana loki mimir alloy opentelemetry ingress"
+        # Force kubectl into offline mode
+        export KUBECONFIG=/dev/null
+        export KUBERNETES_MASTER=""
+        export KUBECTL_DISCOVERY_CACHE_DIR="$RUNNER_TEMP/kubectl-cache"
+        mkdir -p "$KUBECTL_DISCOVERY_CACHE_DIR"
+
         DIRS="${{ inputs.deployment-dirs }}"
-
-        if [[ -z "${DIRS// }" ]]; then
-          DIRS="$DEFAULT_DIRS"
-        fi
-
         read -r -a DIR_ARRAY <<< "$DIRS"
 
-        MODE="${{ inputs.dry-run-mode }}"
-        VALIDATE_FLAG="--validate=false"
-
-        PROCESSED_DIRS=0
-        PROCESSED_FILES=0
-
         for DIR in "${DIR_ARRAY[@]}"; do
-          PATH_DIR="kubernetes/${DIR}"
+          PATH_DIR="kubernetes/$DIR"
 
           if [[ ! -d "$PATH_DIR" ]]; then
-            echo "Directory not found: $PATH_DIR" >&2
+            echo "Missing directory: $PATH_DIR" >&2
             exit 1
           fi
 
@@ -60,20 +44,15 @@ runs:
           shopt -u nullglob
 
           if [[ ${#FILES[@]} -eq 0 ]]; then
-            echo "No manifest files in: $PATH_DIR" >&2
+            echo "No manifests in: $PATH_DIR" >&2
             exit 1
           fi
 
-          PROCESSED_DIRS=$((PROCESSED_DIRS + 1))
-          PROCESSED_FILES=$((PROCESSED_FILES + ${#FILES[@]}))
-
           kubectl apply \
-            --dry-run="$MODE" \
-            $VALIDATE_FLAG \
+            --dry-run=client \
+            --validate=false \
+            --openapi-schema-cache-path="$KUBECTL_DISCOVERY_CACHE_DIR" \
             -f "$PATH_DIR"
         done
 
-        echo "${{ inputs.stage }} validation completed." >> "$GITHUB_STEP_SUMMARY"
-        echo "- Dry-run mode: $MODE" >> "$GITHUB_STEP_SUMMARY"
-        echo "- Directories: $PROCESSED_DIRS" >> "$GITHUB_STEP_SUMMARY"
-        echo "- Manifest files: $PROCESSED_FILES" >> "$GITHUB_STEP_SUMMARY"
+        echo "✔ ${{ inputs.stage }} manifest validation passed (offline)" >> "$GITHUB_STEP_SUMMARY"
