@@ -15,9 +15,10 @@ defaults:
     shell: bash
 
 env:
-  KUBECTL_VERSION: ${{ vars.KUBECTL_VERSION || 'v1.28.0' }}
+  KUBECTL_VERSION: v1.28.0
   DEPLOYMENT_DIRS: "prometheus grafana"
-  DRY_RUN_MODE: ${{ vars.DRY_RUN_MODE || 'client' }}
+  KUBECONFIG: /dev/null
+  KUBERNETES_MASTER: ""
 
 jobs:
   deploy-dev:
@@ -33,7 +34,6 @@ jobs:
           stage: DEV
           kubectl-version: ${{ env.KUBECTL_VERSION }}
           deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
-          dry-run-mode: ${{ env.DRY_RUN_MODE }}
 
   deploy-uat:
     name: Promote to UAT
@@ -49,7 +49,6 @@ jobs:
           stage: UAT
           kubectl-version: ${{ env.KUBECTL_VERSION }}
           deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
-          dry-run-mode: ${{ env.DRY_RUN_MODE }}
 
   deploy-prod:
     name: Promote to PROD
@@ -65,4 +64,3 @@ jobs:
           stage: PROD
           kubectl-version: ${{ env.KUBECTL_VERSION }}
           deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
-          dry-run-mode: ${{ env.DRY_RUN_MODE }}
