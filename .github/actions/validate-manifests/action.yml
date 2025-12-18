@@ -10,7 +10,8 @@ inputs:
     default: v1.28.0
   deployment-dirs:
     description: Space-separated list of manifest directories under kubernetes/.
-    required: true
+    required: false
+    default: namespaces prometheus grafana loki mimir alloy opentelemetry ingress
   dry-run-mode:
     description: Kubectl dry-run mode to use (client or server).
     default: client
@@ -27,15 +28,23 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
+        default_dirs="namespaces prometheus grafana loki mimir alloy opentelemetry ingress"
         dirs="${{ inputs.deployment-dirs }}"
         if [[ -z "${dirs:-}" || -z "${dirs//[[:space:]]/}" ]]; then
+          dirs="$default_dirs"
+        fi
+
+        read -r -a dir_array <<< "$dirs"
+        if [[ ${#dir_array[@]} -eq 0 ]]; then
           echo "No deployment directories provided; cannot validate." >&2
           exit 1
         fi
 
         mode="${{ inputs.dry-run-mode }}"
+        processed_dirs=0
+        processed_files=0
 
-        for dir in ${dirs}; do
+        for dir in "${dir_array[@]}"; do
           path="kubernetes/$dir/"
           if [[ ! -d "$path" ]]; then
             echo "Expected directory $path not found." >&2
@@ -50,7 +59,9 @@ runs:
             exit 1
           fi
 
+          processed_dirs=$((processed_dirs + 1))
+          processed_files=$((processed_files + ${#files[@]}))
           kubectl apply --dry-run="${mode}" -f "$path"
         done
 
-        echo "${{ inputs.stage }} validation completed using ${mode} dry-run. Server mode provides cluster-side validation when a reachable cluster is available." >> "$GITHUB_STEP_SUMMARY"
+        echo "${{ inputs.stage }} validation completed using ${mode} dry-run across ${processed_dirs} directories and ${processed_files} manifest files. Server mode provides cluster-side validation when a reachable cluster is available." >> "$GITHUB_STEP_SUMMARY"
