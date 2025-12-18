@@ -1,12 +1,9 @@
 name: Validate Kubernetes Manifests
-description: Offline Kubernetes manifest validation using kubectl.
+description: Offline Kubernetes manifest validation using Python YAML parsing.
 
 inputs:
   stage:
     required: true
-
-  kubectl-version:
-    default: v1.28.0
 
   deployment-dirs:
     default: namespaces prometheus grafana loki mimir alloy opentelemetry ingress
@@ -14,11 +11,6 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Setup kubectl
-      uses: azure/setup-kubectl@v3
-      with:
-        version: ${{ inputs.kubectl-version }}
-
     - name: Validate manifests
       shell: bash
       run: |
@@ -51,9 +43,11 @@ import yaml
 path = sys.argv[1]
 try:
     with open(path, "r", encoding="utf-8") as f:
-        for _ in yaml.safe_load_all(f):
+        for _ in yaml.compose_all(f):
             pass
-except Exception as exc:
+except yaml.YAMLError as exc:
+    raise SystemExit(f"{path}: {exc}")
+except OSError as exc:
     raise SystemExit(f"{path}: {exc}")
 PY
           done
