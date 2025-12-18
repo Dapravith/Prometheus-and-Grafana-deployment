@@ -1,11 +1,13 @@
 name: Validate Kubernetes Manifests
-description: Offline Kubernetes manifest validation (CI-safe).
+description: Offline Kubernetes manifest validation using kubectl.
 
 inputs:
   stage:
     required: true
+
   kubectl-version:
     default: v1.28.0
+
   deployment-dirs:
     default: namespaces prometheus grafana loki mimir alloy opentelemetry ingress
 
@@ -22,11 +24,9 @@ runs:
       run: |
         set -euo pipefail
 
-        # Force kubectl into offline mode
+        # Force kubectl offline
         export KUBECONFIG=/dev/null
         export KUBERNETES_MASTER=""
-        export KUBECTL_DISCOVERY_CACHE_DIR="$RUNNER_TEMP/kubectl-cache"
-        mkdir -p "$KUBECTL_DISCOVERY_CACHE_DIR"
 
         DIRS="${{ inputs.deployment-dirs }}"
         read -r -a DIR_ARRAY <<< "$DIRS"
@@ -51,8 +51,7 @@ runs:
           kubectl apply \
             --dry-run=client \
             --validate=false \
-            --openapi-schema-cache-path="$KUBECTL_DISCOVERY_CACHE_DIR" \
             -f "$PATH_DIR"
         done
 
-        echo "✔ ${{ inputs.stage }} manifest validation passed (offline)" >> "$GITHUB_STEP_SUMMARY"
+        echo "✔ ${{ inputs.stage }} validation passed (client dry-run)" >> "$GITHUB_STEP_SUMMARY"
