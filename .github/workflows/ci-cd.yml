@@ -35,14 +35,12 @@ jobs:
 
       - name: Validate Kubernetes YAML
         run: |
-          echo "Validating Kubernetes manifests..."
           for file in $(find kubernetes -name "*.yml" -o -name "*.yaml"); do
             python3 -c "import yaml; yaml.safe_load_all(open('$file'))"
           done
 
       - name: Validate Ansible YAML
         run: |
-          echo "Validating Ansible playbooks..."
           for file in $(find ansible -name "*.yml"); do
             python3 -c "import yaml; yaml.safe_load(open('$file'))"
           done
@@ -133,8 +131,8 @@ jobs:
           sudo apt-get install -y shellcheck
           shellcheck quickstart.sh || true
 
-  deploy-to-test:
-    name: Deploy to Test Environment
+  deploy-and-validate:
+    name: Deploy and Validate Observability Stack
     runs-on: ubuntu-latest
     needs: [validate-configurations, security-scan, lint-and-test]
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/')
@@ -157,65 +155,36 @@ jobs:
           kubectl apply -f kubernetes/alloy/
           kubectl apply -f kubernetes/opentelemetry/
 
-      - name: Wait for pods
+      - name: Wait for pods to be ready
         run: |
-          kubectl wait --for=condition=ready pod -n observability --all --timeout=100s || true
-
-      - name: Deployment status
-        run: kubectl get all -n observability
-
-  monitoring-validation:
-    name: Validate Monitoring Stack
-    runs-on: ubuntu-latest
-    needs: deploy-to-test
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/')
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Wait for Prometheus pod to be ready
-        run: |
-          echo "Waiting for Prometheus pod to be ready..."
-          kubectl wait --namespace=observability \
-            --for=condition=ready pod \
-            --selector=app=prometheus \
-            --timeout=100s
+          kubectl wait --for=condition=ready pod -n observability --all --timeout=60s || true
 
       - name: Test Prometheus
         run: |
           POD_NAME=$(kubectl get pods -n observability -l app=prometheus -o jsonpath='{.items[0].metadata.name}')
-          echo "Prometheus pod: $POD_NAME"
-
           kubectl port-forward -n observability $POD_NAME 9090:9090 &
           PORT_FORWARD_PID=$!
-
           for i in {1..20}; do
             nc -z localhost 9090 && break
-            echo "Waiting for Prometheus port 9090..."
             sleep 1
           done
-
           curl -f http://localhost:9090/-/healthy
-
           kill $PORT_FORWARD_PID
 
       - name: Test Grafana
         run: |
           POD_NAME=$(kubectl get pods -n observability -l app=grafana -o jsonpath='{.items[0].metadata.name}')
-          echo "Grafana pod: $POD_NAME"
-
           kubectl port-forward -n observability $POD_NAME 3000:3000 &
           PORT_FORWARD_PID=$!
-
           for i in {1..20}; do
             nc -z localhost 3000 && break
-            echo "Waiting for Grafana port 3000..."
             sleep 1
           done
-
           curl -f http://localhost:3000/api/health
-
           kill $PORT_FORWARD_PID
+
+      - name: Deployment status
+        run: kubectl get all -n observability
 
   notify:
     name: Notify Status
@@ -224,8 +193,7 @@ jobs:
       - validate-configurations
       - security-scan
       - lint-and-test
-      - deploy-to-test
-      - monitoring-validation
+      - deploy-and-validate
     if: always()
     steps:
       - name: Workflow result
