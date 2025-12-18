@@ -1,0 +1,22 @@
+# Terraform Example Variables
+# Copy this file to terraform.tfvars and customize
+
+# Path to your kubeconfig file
+# kubeconfig_path = "~/.kube/config"
+
+# Namespace for the observability stack
+# namespace = "observability"
+
+# Number of Prometheus replicas
+# prometheus_replicas = 2
+
+# Grafana admin password (change in production!)
+# grafana_admin_password = "changeme"
+
+# Domain for ingress
+# domain = "yourdomain.com"
+
+# Enable/disable components
+# enable_mimir = true
+# enable_loki = true
+# enable_opentelemetry = true
