@@ -14,10 +14,7 @@ defaults:
     shell: bash
 
 env:
-  KUBECTL_VERSION: v1.28.0
   DEPLOYMENT_DIRS: "prometheus grafana"
-  KUBECONFIG: /dev/null
-  KUBERNETES_MASTER: ""
 
 jobs:
   deploy-dev:
@@ -29,7 +26,6 @@ jobs:
         uses: ./.github/actions/validate-manifests
         with:
           stage: DEV
-          kubectl-version: ${{ env.KUBECTL_VERSION }}
           deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
 
   deploy-uat:
@@ -42,7 +38,6 @@ jobs:
         uses: ./.github/actions/validate-manifests
         with:
           stage: UAT
-          kubectl-version: ${{ env.KUBECTL_VERSION }}
           deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
 
   deploy-prod:
@@ -55,5 +50,4 @@ jobs:
         uses: ./.github/actions/validate-manifests
         with:
           stage: PROD
-          kubectl-version: ${{ env.KUBECTL_VERSION }}
           deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}

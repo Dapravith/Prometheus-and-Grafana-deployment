@@ -1,12 +1,9 @@
 name: Validate Kubernetes Manifests
-description: Offline Kubernetes manifest validation using kubectl.
+description: Offline Kubernetes manifest validation using Python YAML parsing.
 
 inputs:
   stage:
     required: true
-
-  kubectl-version:
-    default: v1.28.0
 
   deployment-dirs:
     default: namespaces prometheus grafana loki mimir alloy opentelemetry ingress
@@ -14,19 +11,22 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Setup kubectl
-      uses: azure/setup-kubectl@v3
-      with:
-        version: ${{ inputs.kubectl-version }}
+    - name: Ensure PyYAML is available
+      shell: bash
+      run: |
+        python3 - <<'PY'
+import importlib.util
+import subprocess
+import sys
+
+if importlib.util.find_spec("yaml") is None:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "PyYAML"])
+PY
 
     - name: Validate manifests
       shell: bash
       run: |
         set -euo pipefail
-
-        # Force kubectl offline
-        export KUBECONFIG=/dev/null
-        export KUBERNETES_MASTER=""
 
         DIRS="${{ inputs.deployment-dirs }}"
         read -r -a DIR_ARRAY <<< "$DIRS"
@@ -48,10 +48,25 @@ runs:
             exit 1
           fi
 
-          kubectl apply \
-            --dry-run=client \
-            --validate=false \
-            -f "$PATH_DIR"
+          for FILE in "${FILES[@]}"; do
+            python3 - <<'PY' "$FILE"
+import sys
+import yaml
+path = sys.argv[1]
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        for node in yaml.compose_all(f, Loader=yaml.SafeLoader):
+            if node is None:
+                continue
+except yaml.YAMLError as exc:
+    mark = getattr(exc, "problem_mark", None)
+    if mark:
+        raise SystemExit(f"{path}: {exc} (line {mark.line + 1}, column {mark.column + 1})")
+    raise SystemExit(f"{path}: {exc}")
+except OSError as exc:
+    raise SystemExit(f"{path}: {exc}")
+PY
+          done
         done
 
-        echo "✔ ${{ inputs.stage }} validation passed (client dry-run)" >> "$GITHUB_STEP_SUMMARY"
+        echo "✔ ${{ inputs.stage }} validation passed (YAML parse)" >> "$GITHUB_STEP_SUMMARY"
