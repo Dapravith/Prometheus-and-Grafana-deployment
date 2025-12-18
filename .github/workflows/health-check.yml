@@ -98,7 +98,7 @@ jobs:
           cat health-metrics.json
 
       - name: Upload health check results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: health-check-results
           path: |
