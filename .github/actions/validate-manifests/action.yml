@@ -1,0 +1,28 @@
+name: Validate Kubernetes Manifests
+description: Apply manifest validation using kubectl dry-run for standard deployment directories.
+
+inputs:
+  stage:
+    description: Environment stage label for summary output.
+    required: true
+  kubectl-version:
+    description: Kubectl version to install.
+    default: v1.28.0
+
+runs:
+  using: composite
+  steps:
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: ${{ inputs.kubectl-version }}
+
+    - name: Validate manifests
+      shell: bash
+      run: |
+        set -euo pipefail
+        mode="${DRY_RUN_MODE:-client}"
+        for dir in ${DEPLOYMENT_DIRS:-""}; do
+          kubectl apply --dry-run="${mode}" -f "kubernetes/$dir/"
+        done
+        echo "${{ inputs.stage }} validation completed using ${mode} dry-run" >> "$GITHUB_STEP_SUMMARY"

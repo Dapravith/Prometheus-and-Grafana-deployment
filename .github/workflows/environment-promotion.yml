@@ -16,6 +16,7 @@ defaults:
 
 env:
   DEPLOYMENT_DIRS: "namespaces prometheus grafana loki mimir alloy opentelemetry ingress"
+  DRY_RUN_MODE: client
 
 jobs:
   deploy-dev:
@@ -26,18 +27,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: v1.28.0
-
       - name: Validate manifests (DEV)
-        run: |
-          set -euo pipefail
-          for dir in $DEPLOYMENT_DIRS; do
-            kubectl apply --dry-run=client -f kubernetes/$dir/
-          done
-          echo "DEV validation completed" >> "$GITHUB_STEP_SUMMARY"
+        uses: ./.github/actions/validate-manifests
+        with:
+          stage: DEV
 
   deploy-uat:
     name: Promote to UAT
@@ -48,18 +41,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: v1.28.0
-
       - name: Validate manifests (UAT)
-        run: |
-          set -euo pipefail
-          for dir in $DEPLOYMENT_DIRS; do
-            kubectl apply --dry-run=client -f kubernetes/$dir/
-          done
-          echo "UAT validation completed" >> "$GITHUB_STEP_SUMMARY"
+        uses: ./.github/actions/validate-manifests
+        with:
+          stage: UAT
 
   deploy-prod:
     name: Promote to PROD
@@ -70,15 +55,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: v1.28.0
-
       - name: Validate manifests (PROD)
-        run: |
-          set -euo pipefail
-          for dir in $DEPLOYMENT_DIRS; do
-            kubectl apply --dry-run=client -f kubernetes/$dir/
-          done
-          echo "PROD validation completed" >> "$GITHUB_STEP_SUMMARY"
+        uses: ./.github/actions/validate-manifests
+        with:
+          stage: PROD
