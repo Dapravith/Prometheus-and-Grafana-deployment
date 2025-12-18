@@ -1,0 +1,62 @@
+name: Validate Kubernetes Manifests
+description: Offline Kubernetes manifest validation using Python YAML parsing
+
+inputs:
+  stage:
+    description: Environment stage label
+    required: true
+
+  deployment-dirs:
+    description: Space-separated directories under kubernetes/
+    default: namespaces prometheus grafana loki mimir alloy opentelemetry ingress
+
+runs:
+  using: composite
+  steps:
+    - name: Ensure PyYAML is available
+      shell: bash
+      run: |
+        python3 - <<'PY'
+import importlib.util, subprocess, sys
+if importlib.util.find_spec("yaml") is None:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "PyYAML==6.0.2"])
+PY
+
+    - name: Validate manifests
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        read -r -a DIRS <<< "${{ inputs.deployment-dirs }}"
+
+        for DIR in "${DIRS[@]}"; do
+          DIR_PATH="kubernetes/$DIR"
+
+          if [[ ! -d "$DIR_PATH" ]]; then
+            echo "Missing directory: $DIR_PATH" >&2
+            exit 1
+          fi
+
+          shopt -s nullglob
+          FILES=("$DIR_PATH"/*.yml "$DIR_PATH"/*.yaml)
+          shopt -u nullglob
+
+          if [[ ${#FILES[@]} -eq 0 ]]; then
+            echo "No manifests in $DIR_PATH" >&2
+            exit 1
+          fi
+
+          for FILE in "${FILES[@]}"; do
+            python3 - <<'PY' "$FILE"
+import sys, yaml
+path = sys.argv[1]
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        list(yaml.safe_load_all(f))
+except yaml.YAMLError as e:
+    raise SystemExit(f"{path}: {e}")
+PY
+          done
+        done
+
+        echo "✔ ${{ inputs.stage }} YAML validation passed" >> "$GITHUB_STEP_SUMMARY"
