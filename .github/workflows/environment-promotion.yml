@@ -16,7 +16,7 @@ defaults:
 
 env:
   KUBECTL_VERSION: ${{ vars.KUBECTL_VERSION || 'v1.28.0' }}
-  DEPLOYMENT_DIRS: ${{ vars.DEPLOYMENT_DIRS || '' }}
+  DEPLOYMENT_DIRS: "prometheus grafana"
   DRY_RUN_MODE: ${{ vars.DRY_RUN_MODE || 'client' }}
 
 jobs:
