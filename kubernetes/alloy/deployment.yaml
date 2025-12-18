@@ -107,6 +107,9 @@ spec:
       serviceAccountName: alloy
       hostNetwork: true
       hostPID: true
+      # NOTE: hostNetwork and hostPID are required for node-level metrics collection
+      # This allows Alloy to collect system metrics from the host machine
+      # In production, consider whether all these metrics are necessary
       containers:
       - name: alloy
         image: grafana/alloy:v1.0.0
@@ -140,7 +143,11 @@ spec:
         securityContext:
           capabilities:
             add:
-            - SYS_ADMIN  # Required for some system-level metrics collection
+            - SYS_ADMIN  # Required for host-level metrics (disk, filesystem, process)
+            # Alternative: Use more specific capabilities if possible:
+            # - SYS_PTRACE (for process metrics)
+            # - NET_ADMIN (for network metrics)
+            # - DAC_READ_SEARCH (for file system access)
           runAsUser: 0  # Required for host-level metrics collection
       volumes:
       - name: config

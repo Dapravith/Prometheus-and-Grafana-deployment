@@ -135,6 +135,11 @@ spec:
           name: mimir-config
       - name: storage
         emptyDir: {}
+        # NOTE: For production, use PersistentVolumeClaim instead of emptyDir
+        # to prevent data loss. Mimir is designed for long-term storage!
+        # Example:
+        # persistentVolumeClaim:
+        #   claimName: mimir-storage
 ---
 apiVersion: v1
 kind: Service
