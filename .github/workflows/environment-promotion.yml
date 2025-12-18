@@ -1,0 +1,84 @@
+name: Multi-Stage Environment Promotion
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  DEPLOYMENT_DIRS: "namespaces prometheus grafana loki mimir alloy opentelemetry ingress"
+
+jobs:
+  deploy-dev:
+    name: Deploy to DEV
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: v1.28.0
+
+      - name: Validate manifests (DEV)
+        run: |
+          set -euo pipefail
+          for dir in $DEPLOYMENT_DIRS; do
+            kubectl apply --dry-run=client -f kubernetes/$dir/
+          done
+          echo "DEV validation completed" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-uat:
+    name: Promote to UAT
+    runs-on: ubuntu-latest
+    needs: deploy-dev
+    environment: uat
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: v1.28.0
+
+      - name: Validate manifests (UAT)
+        run: |
+          set -euo pipefail
+          for dir in $DEPLOYMENT_DIRS; do
+            kubectl apply --dry-run=client -f kubernetes/$dir/
+          done
+          echo "UAT validation completed" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-prod:
+    name: Promote to PROD
+    runs-on: ubuntu-latest
+    needs: deploy-uat
+    environment: prod
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: v1.28.0
+
+      - name: Validate manifests (PROD)
+        run: |
+          set -euo pipefail
+          for dir in $DEPLOYMENT_DIRS; do
+            kubectl apply --dry-run=client -f kubernetes/$dir/
+          done
+          echo "PROD validation completed" >> "$GITHUB_STEP_SUMMARY"
