@@ -90,14 +90,12 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
 
-      # Full scan on push / manual
       - name: TruffleHog secret scan (push)
         uses: trufflesecurity/trufflehog@main
         if: github.event_name != 'pull_request'
         with:
           path: ./
 
-      # Diff scan on PR
       - name: TruffleHog secret scan (PR)
         uses: trufflesecurity/trufflehog@main
         if: github.event_name == 'pull_request'
@@ -174,6 +172,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Wait for Prometheus to be ready
+        run: |
+          kubectl wait --namespace=observability \
+              --for=condition=ready pod \
+              --selector=app=prometheus \
+              --timeout=300s
 
       - name: Test Prometheus
         run: |
