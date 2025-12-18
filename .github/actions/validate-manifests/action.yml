@@ -1,72 +1,54 @@
 name: Validate Kubernetes Manifests
-description: Offline Kubernetes manifest validation using Python YAML parsing.
+description: Offline Kubernetes manifest validation using kubectl
 
 inputs:
   stage:
+    description: Environment stage label
     required: true
 
   deployment-dirs:
-    default: namespaces prometheus grafana loki mimir alloy opentelemetry ingress
+    description: Space-separated directories under kubernetes/
+    required: true
 
 runs:
   using: composite
   steps:
-    - name: Ensure PyYAML is available
-      shell: bash
-      run: |
-        python3 - <<'PY'
-import importlib.util
-import subprocess
-import sys
-
-if importlib.util.find_spec("yaml") is None:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "PyYAML"])
-PY
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: v1.28.0
 
     - name: Validate manifests
       shell: bash
       run: |
         set -euo pipefail
 
-        DIRS="${{ inputs.deployment-dirs }}"
-        read -r -a DIR_ARRAY <<< "$DIRS"
+        export KUBECONFIG=/dev/null
+        export KUBERNETES_MASTER=""
 
-        for DIR in "${DIR_ARRAY[@]}"; do
-          PATH_DIR="kubernetes/$DIR"
+        read -r -a DIRS <<< "${{ inputs.deployment-dirs }}"
 
-          if [[ ! -d "$PATH_DIR" ]]; then
-            echo "Missing directory: $PATH_DIR" >&2
+        for DIR in "${DIRS[@]}"; do
+          MANIFEST_DIR="kubernetes/$DIR"
+
+          if [ ! -d "$MANIFEST_DIR" ]; then
+            echo "Directory not found: $MANIFEST_DIR" >&2
             exit 1
           fi
 
           shopt -s nullglob
-          FILES=("$PATH_DIR"/*.yml "$PATH_DIR"/*.yaml)
+          FILES=("$MANIFEST_DIR"/*.yml "$MANIFEST_DIR"/*.yaml)
           shopt -u nullglob
 
-          if [[ ${#FILES[@]} -eq 0 ]]; then
-            echo "No manifests in: $PATH_DIR" >&2
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "No manifests found in $MANIFEST_DIR" >&2
             exit 1
           fi
 
-          for FILE in "${FILES[@]}"; do
-            python3 - <<'PY' "$FILE"
-import sys
-import yaml
-path = sys.argv[1]
-try:
-    with open(path, "r", encoding="utf-8") as f:
-        for node in yaml.compose_all(f, Loader=yaml.SafeLoader):
-            if node is None:
-                continue
-except yaml.YAMLError as exc:
-    mark = getattr(exc, "problem_mark", None)
-    if mark:
-        raise SystemExit(f"{path}: {exc} (line {mark.line + 1}, column {mark.column + 1})")
-    raise SystemExit(f"{path}: {exc}")
-except OSError as exc:
-    raise SystemExit(f"{path}: {exc}")
-PY
-          done
+          kubectl apply \
+            --dry-run=client \
+            --validate=false \
+            -f "$MANIFEST_DIR"
         done
 
-        echo "✔ ${{ inputs.stage }} validation passed (YAML parse)" >> "$GITHUB_STEP_SUMMARY"
+        echo "✔ ${{ inputs.stage }} manifest validation passed" >> "$GITHUB_STEP_SUMMARY"
