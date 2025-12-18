@@ -28,13 +28,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Validate manifests (DEV)
-        uses: ./.github/actions/validate-manifests
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
         with:
-          stage: DEV
-          deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
-          dry-run-mode: ${{ env.DRY_RUN_MODE }}
-          kubectl-version: ${{ env.KUBECTL_VERSION }}
+          version: ${{ env.KUBECTL_VERSION }}
+
+      - name: Validate manifests (DEV)
+        run: |
+          echo "Validating DEV manifests (dry-run)..."
+          for dir in ${{ env.DEPLOYMENT_DIRS }}; do
+            if [ -d "$dir" ]; then
+              kubectl apply -f "$dir" --dry-run=client
+            fi
+          done
 
   deploy-uat:
     name: Promote to UAT
@@ -45,13 +51,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Validate manifests (UAT)
-        uses: ./.github/actions/validate-manifests
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
         with:
-          stage: UAT
-          deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
-          dry-run-mode: ${{ env.DRY_RUN_MODE }}
-          kubectl-version: ${{ env.KUBECTL_VERSION }}
+          version: ${{ env.KUBECTL_VERSION }}
+
+      - name: Validate manifests (UAT)
+        run: |
+          echo "Validating UAT manifests (dry-run)..."
+          for dir in ${{ env.DEPLOYMENT_DIRS }}; do
+            if [ -d "$dir" ]; then
+              kubectl apply -f "$dir" --dry-run=client
+            fi
+          done
 
   deploy-prod:
     name: Promote to PROD
@@ -62,10 +74,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Validate manifests (PROD)
-        uses: ./.github/actions/validate-manifests
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
         with:
-          stage: PROD
-          deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
-          dry-run-mode: ${{ env.DRY_RUN_MODE }}
-          kubectl-version: ${{ env.KUBECTL_VERSION }}
+          version: ${{ env.KUBECTL_VERSION }}
+
+      - name: Validate manifests (PROD)
+        run: |
+          echo "Validating PROD manifests (dry-run)..."
+          for dir in ${{ env.DEPLOYMENT_DIRS }}; do
+            if [ -d "$dir" ]; then
+              kubectl apply -f "$dir" --dry-run=client
+            fi
+          done
