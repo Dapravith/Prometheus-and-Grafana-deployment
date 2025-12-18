@@ -17,10 +17,10 @@ variable "prometheus_replicas" {
 }
 
 variable "grafana_admin_password" {
-  description = "Grafana admin password"
+  description = "Grafana admin password - CHANGE THIS IN PRODUCTION!"
   type        = string
   sensitive   = true
-  default     = "admin"
+  default     = "changeme-insecure-default"
 }
 
 variable "domain" {

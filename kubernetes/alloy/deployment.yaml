@@ -75,7 +75,6 @@ data:
       output {
         metrics = [otelcol.exporter.prometheus.default.input]
         logs    = [otelcol.exporter.loki.default.input]
-        traces  = [otelcol.exporter.otlp.default.input]
       }
     }
 
@@ -87,13 +86,6 @@ data:
     // OpenTelemetry to Loki
     otelcol.exporter.loki "default" {
       forward_to = [loki.write.default.receiver]
-    }
-
-    // OpenTelemetry traces
-    otelcol.exporter.otlp "default" {
-      client {
-        endpoint = "tempo-service.observability.svc.cluster.local:4317"
-      }
     }
 ---
 apiVersion: apps/v1
@@ -146,8 +138,10 @@ spec:
             memory: "512Mi"
             cpu: "500m"
         securityContext:
-          privileged: true
-          runAsUser: 0
+          capabilities:
+            add:
+            - SYS_ADMIN  # Required for some system-level metrics collection
+          runAsUser: 0  # Required for host-level metrics collection
       volumes:
       - name: config
         configMap:

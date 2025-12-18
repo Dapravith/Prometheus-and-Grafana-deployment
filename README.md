@@ -95,9 +95,11 @@ make port-forward-grafana
 make port-forward-prometheus
 ```
 
-Default Grafana credentials:
+Default Grafana credentials (for development only):
 - **Username**: `admin`
 - **Password**: `admin`
+
+> ⚠️ **IMPORTANT**: Change the default password immediately in production! Edit `kubernetes/grafana/deployment.yaml` and update the `grafana-admin-credentials` secret.
 
 #### Via Ingress (Production)
 
@@ -256,11 +258,34 @@ make clean
 
 ## 🔒 Security Considerations
 
-- **Non-root containers** - All containers run as non-root users
-- **Resource limits** - CPU and memory limits prevent resource exhaustion
-- **Network policies** - (Add as needed for production)
-- **RBAC** - Proper service accounts and role bindings
-- **TLS/SSL** - Configure certificates for ingress (update ingress.yaml)
+⚠️ **Before Production Deployment:**
+
+1. **Change Default Passwords**
+   - Update Grafana admin password in `kubernetes/grafana/deployment.yaml`
+   - Use strong, randomly generated passwords
+   - Store passwords in secure secret management systems
+
+2. **Use Persistent Storage**
+   - Replace `emptyDir` with `PersistentVolumeClaim` to prevent data loss
+   - See DEPLOYMENT.md for configuration examples
+
+3. **Enable TLS/SSL**
+   - Configure cert-manager for automatic certificate management
+   - Update ingress annotations for HTTPS redirect
+
+4. **Security Features Included:**
+   - Non-root containers (except Alloy which needs host access)
+   - Security contexts with specific capabilities instead of privileged mode
+   - Resource limits to prevent resource exhaustion
+   - RBAC with least privilege principle
+   - Service accounts with minimal permissions
+
+5. **Additional Recommendations:**
+   - Implement Network Policies for pod-to-pod communication
+   - Use Pod Security Standards/Policies
+   - Regular security updates and patches
+   - Enable audit logging
+   - Use external secret management (Vault, External Secrets Operator)
 
 ## 📈 Scaling
 

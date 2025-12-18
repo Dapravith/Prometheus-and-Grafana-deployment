@@ -29,6 +29,16 @@ data:
         timeInterval: 15s
 ---
 apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-admin-credentials
+  namespace: observability
+type: Opaque
+stringData:
+  admin-user: admin
+  admin-password: admin  # CHANGE THIS IN PRODUCTION!
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: grafana-dashboards-config
@@ -82,9 +92,15 @@ spec:
           protocol: TCP
         env:
         - name: GF_SECURITY_ADMIN_USER
-          value: admin
+          valueFrom:
+            secretKeyRef:
+              name: grafana-admin-credentials
+              key: admin-user
         - name: GF_SECURITY_ADMIN_PASSWORD
-          value: admin
+          valueFrom:
+            secretKeyRef:
+              name: grafana-admin-credentials
+              key: admin-password
         - name: GF_INSTALL_PLUGINS
           value: "grafana-piechart-panel"
         - name: GF_SERVER_ROOT_URL

@@ -77,6 +77,10 @@ spec:
           name: prometheus-config
       - name: storage
         emptyDir: {}
+        # NOTE: For production, use PersistentVolumeClaim instead of emptyDir
+        # to prevent data loss on pod restarts. Example:
+        # persistentVolumeClaim:
+        #   claimName: prometheus-storage
 ---
 apiVersion: v1
 kind: Service

@@ -42,10 +42,6 @@ data:
         namespace: otel
         const_labels:
           environment: production
-      otlp/prometheus:
-        endpoint: prometheus-service.observability.svc.cluster.local:9090
-        tls:
-          insecure: true
       loki:
         endpoint: http://loki-service.observability.svc.cluster.local:3100/loki/api/v1/push
       logging:
