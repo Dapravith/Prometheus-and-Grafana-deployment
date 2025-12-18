@@ -28,7 +28,7 @@ runs:
       run: |
         set -euo pipefail
         dirs="${{ inputs.deployment-dirs }}"
-        if [[ -z "${dirs:-}" || "$dirs" =~ ^[[:space:]]*$ ]]; then
+        if [[ -z "${dirs:-}" || -z "${dirs//[[:space:]]/}" ]]; then
           echo "No deployment directories provided; cannot validate." >&2
           exit 1
         fi
@@ -53,5 +53,4 @@ runs:
           kubectl apply --dry-run="${mode}" -f "$path"
         done
 
-        echo "Dry-run mode: ${mode}. Server mode provides cluster-side validation when a reachable cluster is available." >> "$GITHUB_STEP_SUMMARY"
-        echo "${{ inputs.stage }} validation completed using ${mode} dry-run" >> "$GITHUB_STEP_SUMMARY"
+        echo "${{ inputs.stage }} validation completed using ${mode} dry-run. Server mode provides cluster-side validation when a reachable cluster is available." >> "$GITHUB_STEP_SUMMARY"
