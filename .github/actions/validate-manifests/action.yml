@@ -16,12 +16,18 @@ runs:
     - name: Validate YAML
       shell: bash
       run: |
-        set -e
+        set -euo pipefail
 
         pip3 install --quiet PyYAML
 
+        shopt -s nullglob
         for d in ${{ inputs.deployment-dirs }}; do
-          for f in kubernetes/$d/*.y*ml; do
-            python3 -c "import yaml,sys; list(yaml.safe_load_all(open(sys.argv[1])))" "$f"
+          files=(kubernetes/$d/*.y*ml)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No YAML files in kubernetes/$d" >&2
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            python3 -c "import yaml,sys; [doc for doc in yaml.safe_load_all(open(sys.argv[1], 'r'))]" "$f"
           done
         done
