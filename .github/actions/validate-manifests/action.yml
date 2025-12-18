@@ -8,6 +8,12 @@ inputs:
   kubectl-version:
     description: Kubectl version to install.
     default: v1.28.0
+  deployment-dirs:
+    description: Space-separated list of manifest directories under kubernetes/.
+    required: true
+  dry-run-mode:
+    description: Kubectl dry-run mode to use (client or server).
+    default: client
 
 runs:
   using: composite
@@ -21,8 +27,30 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        mode="${DRY_RUN_MODE:-client}"
-        for dir in ${DEPLOYMENT_DIRS:-""}; do
-          kubectl apply --dry-run="${mode}" -f "kubernetes/$dir/"
+        dirs="${{ inputs.deployment-dirs }}"
+        if [[ -z "${dirs// }" ]]; then
+          echo "No deployment directories provided; cannot validate." >&2
+          exit 1
+        fi
+
+        mode="${{ inputs.dry-run-mode }}"
+
+        for dir in ${dirs}; do
+          path="kubernetes/$dir/"
+          if [[ ! -d "$path" ]]; then
+            echo "Expected directory $path not found." >&2
+            exit 1
+          fi
+
+          shopt -s nullglob
+          files=("$path"*.yml "$path"*.yaml)
+          shopt -u nullglob
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No manifest files found in $path." >&2
+            exit 1
+          fi
+
+          kubectl apply --dry-run="${mode}" -f "$path"
         done
+
         echo "${{ inputs.stage }} validation completed using ${mode} dry-run" >> "$GITHUB_STEP_SUMMARY"

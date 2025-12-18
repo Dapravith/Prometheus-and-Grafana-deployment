@@ -31,6 +31,8 @@ jobs:
         uses: ./.github/actions/validate-manifests
         with:
           stage: DEV
+          deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
+          dry-run-mode: ${{ env.DRY_RUN_MODE }}
 
   deploy-uat:
     name: Promote to UAT
@@ -45,6 +47,8 @@ jobs:
         uses: ./.github/actions/validate-manifests
         with:
           stage: UAT
+          deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
+          dry-run-mode: ${{ env.DRY_RUN_MODE }}
 
   deploy-prod:
     name: Promote to PROD
@@ -59,3 +63,5 @@ jobs:
         uses: ./.github/actions/validate-manifests
         with:
           stage: PROD
+          deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
+          dry-run-mode: ${{ env.DRY_RUN_MODE }}
