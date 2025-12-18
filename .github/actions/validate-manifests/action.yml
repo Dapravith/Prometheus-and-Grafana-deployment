@@ -1,25 +1,28 @@
 name: Validate Kubernetes Manifests
-description: Apply manifest validation using kubectl dry-run for standard deployment directories.
+description: Validate Kubernetes manifests using kubectl dry-run (client-side).
 
 inputs:
   stage:
     description: Environment stage label for summary output.
     required: true
+
   kubectl-version:
     description: Kubectl version to install.
     default: v1.28.0
+
   deployment-dirs:
     description: Space-separated list of manifest directories under kubernetes/.
     required: false
     default: namespaces prometheus grafana loki mimir alloy opentelemetry ingress
+
   dry-run-mode:
-    description: Kubectl dry-run mode to use (client or server).
+    description: Kubectl dry-run mode (client or server).
     default: client
 
 runs:
   using: composite
   steps:
-    - name: Set up kubectl
+    - name: Setup kubectl
       uses: azure/setup-kubectl@v3
       with:
         version: ${{ inputs.kubectl-version }}
@@ -28,40 +31,49 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        default_dirs="namespaces prometheus grafana loki mimir alloy opentelemetry ingress"
-        dirs="${{ inputs.deployment-dirs }}"
-        if [[ -z "${dirs:-}" || -z "${dirs//[[:space:]]/}" ]]; then
-          dirs="$default_dirs"
+
+        DEFAULT_DIRS="namespaces prometheus grafana loki mimir alloy opentelemetry ingress"
+        DIRS="${{ inputs.deployment-dirs }}"
+
+        if [[ -z "${DIRS// }" ]]; then
+          DIRS="$DEFAULT_DIRS"
         fi
 
-        read -r -a dir_array <<< "$dirs"
-        if [[ ${#dir_array[@]} -eq 0 ]]; then
-          echo "No deployment directories provided; cannot validate." >&2
-          exit 1
-        fi
+        read -r -a DIR_ARRAY <<< "$DIRS"
 
-        mode="${{ inputs.dry-run-mode }}"
-        processed_dirs=0
-        processed_files=0
+        MODE="${{ inputs.dry-run-mode }}"
+        VALIDATE_FLAG="--validate=false"
 
-        for dir in "${dir_array[@]}"; do
-          path="kubernetes/$dir/"
-          if [[ ! -d "$path" ]]; then
-            echo "Expected directory $path not found." >&2
+        PROCESSED_DIRS=0
+        PROCESSED_FILES=0
+
+        for DIR in "${DIR_ARRAY[@]}"; do
+          PATH_DIR="kubernetes/${DIR}"
+
+          if [[ ! -d "$PATH_DIR" ]]; then
+            echo "Directory not found: $PATH_DIR" >&2
             exit 1
           fi
 
           shopt -s nullglob
-          files=("$path"*.yml "$path"*.yaml)
+          FILES=("$PATH_DIR"/*.yml "$PATH_DIR"/*.yaml)
           shopt -u nullglob
-          if [[ ${#files[@]} -eq 0 ]]; then
-            echo "No manifest files found in $path." >&2
+
+          if [[ ${#FILES[@]} -eq 0 ]]; then
+            echo "No manifest files in: $PATH_DIR" >&2
             exit 1
           fi
 
-          processed_dirs=$((processed_dirs + 1))
-          processed_files=$((processed_files + ${#files[@]}))
-          kubectl apply --dry-run="${mode}" -f "$path"
+          PROCESSED_DIRS=$((PROCESSED_DIRS + 1))
+          PROCESSED_FILES=$((PROCESSED_FILES + ${#FILES[@]}))
+
+          kubectl apply \
+            --dry-run="$MODE" \
+            $VALIDATE_FLAG \
+            -f "$PATH_DIR"
         done
 
-        echo "${{ inputs.stage }} validation completed using ${mode} dry-run across ${processed_dirs} directories and ${processed_files} manifest files. Server mode provides cluster-side validation when a reachable cluster is available." >> "$GITHUB_STEP_SUMMARY"
+        echo "${{ inputs.stage }} validation completed." >> "$GITHUB_STEP_SUMMARY"
+        echo "- Dry-run mode: $MODE" >> "$GITHUB_STEP_SUMMARY"
+        echo "- Directories: $PROCESSED_DIRS" >> "$GITHUB_STEP_SUMMARY"
+        echo "- Manifest files: $PROCESSED_FILES" >> "$GITHUB_STEP_SUMMARY"
