@@ -173,24 +173,49 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Wait for Prometheus to be ready
+      - name: Wait for Prometheus pod to be ready
         run: |
+          echo "Waiting for Prometheus pod to be ready..."
           kubectl wait --namespace=observability \
-              --for=condition=ready pod \
-              --selector=app=prometheus \
-              --timeout=300s
+            --for=condition=ready pod \
+            --selector=app=prometheus \
+            --timeout=100s
 
       - name: Test Prometheus
         run: |
-          kubectl port-forward -n observability svc/prometheus-service 9090:9090 &
-          sleep 10
+          POD_NAME=$(kubectl get pods -n observability -l app=prometheus -o jsonpath='{.items[0].metadata.name}')
+          echo "Prometheus pod: $POD_NAME"
+
+          kubectl port-forward -n observability $POD_NAME 9090:9090 &
+          PORT_FORWARD_PID=$!
+
+          for i in {1..20}; do
+            nc -z localhost 9090 && break
+            echo "Waiting for Prometheus port 9090..."
+            sleep 1
+          done
+
           curl -f http://localhost:9090/-/healthy
+
+          kill $PORT_FORWARD_PID
 
       - name: Test Grafana
         run: |
-          kubectl port-forward -n observability svc/grafana-service 3000:3000 &
-          sleep 10
+          POD_NAME=$(kubectl get pods -n observability -l app=grafana -o jsonpath='{.items[0].metadata.name}')
+          echo "Grafana pod: $POD_NAME"
+
+          kubectl port-forward -n observability $POD_NAME 3000:3000 &
+          PORT_FORWARD_PID=$!
+
+          for i in {1..20}; do
+            nc -z localhost 3000 && break
+            echo "Waiting for Grafana port 3000..."
+            sleep 1
+          done
+
           curl -f http://localhost:3000/api/health
+
+          kill $PORT_FORWARD_PID
 
   notify:
     name: Notify Status
