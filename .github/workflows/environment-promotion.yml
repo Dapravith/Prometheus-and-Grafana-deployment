@@ -28,19 +28,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up kubectl
+      - name: Setup kubectl
         uses: azure/setup-kubectl@v3
         with:
           version: ${{ env.KUBECTL_VERSION }}
 
       - name: Validate manifests (DEV)
-        run: |
-          echo "Validating DEV manifests (dry-run)..."
-          for dir in ${{ env.DEPLOYMENT_DIRS }}; do
-            if [ -d "$dir" ]; then
-              kubectl apply -f "$dir" --dry-run=client
-            fi
-          done
+        uses: ./.github/actions/validate-manifests
+        with:
+          stage: DEV
+          deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
+          dry-run-mode: ${{ env.DRY_RUN_MODE }}
 
   deploy-uat:
     name: Promote to UAT
@@ -51,19 +49,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up kubectl
+      - name: Setup kubectl
         uses: azure/setup-kubectl@v3
         with:
           version: ${{ env.KUBECTL_VERSION }}
 
       - name: Validate manifests (UAT)
-        run: |
-          echo "Validating UAT manifests (dry-run)..."
-          for dir in ${{ env.DEPLOYMENT_DIRS }}; do
-            if [ -d "$dir" ]; then
-              kubectl apply -f "$dir" --dry-run=client
-            fi
-          done
+        uses: ./.github/actions/validate-manifests
+        with:
+          stage: UAT
+          deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
+          dry-run-mode: ${{ env.DRY_RUN_MODE }}
 
   deploy-prod:
     name: Promote to PROD
@@ -74,16 +70,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up kubectl
+      - name: Setup kubectl
         uses: azure/setup-kubectl@v3
         with:
           version: ${{ env.KUBECTL_VERSION }}
 
       - name: Validate manifests (PROD)
-        run: |
-          echo "Validating PROD manifests (dry-run)..."
-          for dir in ${{ env.DEPLOYMENT_DIRS }}; do
-            if [ -d "$dir" ]; then
-              kubectl apply -f "$dir" --dry-run=client
-            fi
-          done
+        uses: ./.github/actions/validate-manifests
+        with:
+          stage: PROD
+          deployment-dirs: ${{ env.DEPLOYMENT_DIRS }}
+          dry-run-mode: ${{ env.DRY_RUN_MODE }}
