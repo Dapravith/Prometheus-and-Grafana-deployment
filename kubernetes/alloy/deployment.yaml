@@ -1,0 +1,223 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alloy-config
+  namespace: observability
+data:
+  config.alloy: |
+    // Logging configuration
+    logging {
+      level  = "info"
+      format = "logfmt"
+    }
+
+    // Prometheus remote write
+    prometheus.remote_write "default" {
+      endpoint {
+        url = "http://prometheus-service.observability.svc.cluster.local:9090/api/v1/write"
+      }
+    }
+
+    // Loki write
+    loki.write "default" {
+      endpoint {
+        url = "http://loki-service.observability.svc.cluster.local:3100/loki/api/v1/push"
+      }
+    }
+
+    // Scrape Kubernetes pods
+    discovery.kubernetes "pods" {
+      role = "pod"
+    }
+
+    // Relabel for Prometheus scraping
+    discovery.relabel "pods" {
+      targets = discovery.kubernetes.pods.targets
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+        regex         = "true"
+        action        = "keep"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+        target_label  = "__metrics_path__"
+        regex         = "(.+)"
+        action        = "replace"
+      }
+
+      rule {
+        source_labels = ["__address__", "__meta_kubernetes_pod_annotation_prometheus_io_port"]
+        target_label  = "__address__"
+        regex         = "([^:]+)(?::\\d+)?;(\\d+)"
+        replacement   = "$1:$2"
+        action        = "replace"
+      }
+    }
+
+    // Scrape metrics
+    prometheus.scrape "pods" {
+      targets    = discovery.relabel.pods.output
+      forward_to = [prometheus.remote_write.default.receiver]
+    }
+
+    // OpenTelemetry receiver
+    otelcol.receiver.otlp "default" {
+      grpc {
+        endpoint = "0.0.0.0:4317"
+      }
+
+      http {
+        endpoint = "0.0.0.0:4318"
+      }
+
+      output {
+        metrics = [otelcol.exporter.prometheus.default.input]
+        logs    = [otelcol.exporter.loki.default.input]
+        traces  = [otelcol.exporter.otlp.default.input]
+      }
+    }
+
+    // OpenTelemetry to Prometheus
+    otelcol.exporter.prometheus "default" {
+      forward_to = [prometheus.remote_write.default.receiver]
+    }
+
+    // OpenTelemetry to Loki
+    otelcol.exporter.loki "default" {
+      forward_to = [loki.write.default.receiver]
+    }
+
+    // OpenTelemetry traces
+    otelcol.exporter.otlp "default" {
+      client {
+        endpoint = "tempo-service.observability.svc.cluster.local:4317"
+      }
+    }
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: alloy
+  namespace: observability
+  labels:
+    app: alloy
+spec:
+  selector:
+    matchLabels:
+      app: alloy
+  template:
+    metadata:
+      labels:
+        app: alloy
+    spec:
+      serviceAccountName: alloy
+      hostNetwork: true
+      hostPID: true
+      containers:
+      - name: alloy
+        image: grafana/alloy:v1.0.0
+        args:
+          - run
+          - /etc/alloy/config.alloy
+          - --server.http.listen-addr=0.0.0.0:12345
+          - --storage.path=/var/lib/alloy/data
+        ports:
+        - name: http
+          containerPort: 12345
+          protocol: TCP
+        - name: otlp-grpc
+          containerPort: 4317
+          protocol: TCP
+        - name: otlp-http
+          containerPort: 4318
+          protocol: TCP
+        volumeMounts:
+        - name: config
+          mountPath: /etc/alloy
+        - name: data
+          mountPath: /var/lib/alloy
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        securityContext:
+          privileged: true
+          runAsUser: 0
+      volumes:
+      - name: config
+        configMap:
+          name: alloy-config
+      - name: data
+        hostPath:
+          path: /var/lib/alloy
+          type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alloy-service
+  namespace: observability
+  labels:
+    app: alloy
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 12345
+    targetPort: 12345
+    protocol: TCP
+  - name: otlp-grpc
+    port: 4317
+    targetPort: 4317
+    protocol: TCP
+  - name: otlp-http
+    port: 4318
+    targetPort: 4318
+    protocol: TCP
+  selector:
+    app: alloy
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alloy
+  namespace: observability
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: alloy
+rules:
+- apiGroups: [""]
+  resources:
+  - nodes
+  - nodes/proxy
+  - services
+  - endpoints
+  - pods
+  verbs: ["get", "list", "watch"]
+- apiGroups:
+  - extensions
+  resources:
+  - ingresses
+  verbs: ["get", "list", "watch"]
+- nonResourceURLs: ["/metrics"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: alloy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: alloy
+subjects:
+- kind: ServiceAccount
+  name: alloy
+  namespace: observability

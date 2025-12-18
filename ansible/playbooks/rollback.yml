@@ -1,0 +1,44 @@
+---
+- name: Rollback Observability Stack
+  hosts: localhost
+  gather_facts: false
+  vars:
+    namespace: "observability"
+  
+  tasks:
+    - name: Get all deployments in namespace
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        namespace: "{{ namespace }}"
+      register: deployments
+
+    - name: Rollback deployments
+      kubernetes.core.k8s:
+        state: present
+        namespace: "{{ namespace }}"
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: "{{ item.metadata.name }}"
+          spec:
+            template:
+              metadata:
+                annotations:
+                  kubectl.kubernetes.io/restartedAt: "{{ ansible_date_time.iso8601 }}"
+      loop: "{{ deployments.resources }}"
+      loop_control:
+        label: "{{ item.metadata.name }}"
+
+    - name: Wait for rollback to complete
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        namespace: "{{ namespace }}"
+        name: "{{ item.metadata.name }}"
+      register: deployment_status
+      until: deployment_status.resources[0].status.updatedReplicas | default(0) == deployment_status.resources[0].spec.replicas
+      retries: 30
+      delay: 10
+      loop: "{{ deployments.resources }}"
+      loop_control:
+        label: "{{ item.metadata.name }}"
