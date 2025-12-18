@@ -15,10 +15,14 @@ output "grafana_url" {
 
 output "loki_service" {
   description = "Loki service name"
-  value       = var.enable_loki ? "loki-service.${kubernetes_namespace.observability.metadata[0].name}.svc.cluster.local" : "disabled"
+  value = var.enable_loki
+    ? "loki-service.${kubernetes_namespace.observability.metadata[0].name}.svc.cluster.local"
+    : "disabled"
 }
 
 output "mimir_service" {
   description = "Mimir service name"
-  value       = var.enable_mimir ? "mimir-service.${kubernetes_namespace.observability.metadata[0].name}.svc.cluster.local" : "disabled"
+  value = var.enable_mimir
+    ? "mimir-service.${kubernetes_namespace.observability.metadata[0].name}.svc.cluster.local"
+    : "disabled"
 }
