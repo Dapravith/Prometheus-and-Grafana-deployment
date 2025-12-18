@@ -1,49 +1,27 @@
 name: Validate Kubernetes Manifests
-description: Offline YAML validation for Kubernetes manifests
+description: Offline YAML validation
 
 inputs:
   stage:
-    description: Environment stage
     required: true
+    description: Environment name
 
   deployment-dirs:
-    description: Space-separated directories under kubernetes/
     required: true
+    description: Space separated directories
 
 runs:
   using: composite
   steps:
-    - name: Install PyYAML
+    - name: Validate YAML
       shell: bash
       run: |
-        pip3 install --quiet PyYAML==6.0.2
+        set -e
 
-    - name: Validate YAML files
-      shell: bash
-      run: |
-        set -euo pipefail
+        pip3 install --quiet PyYAML
 
-        IFS=' ' read -r -a DIRS <<< "${{ inputs.deployment-dirs }}"
-
-        for DIR in "${DIRS[@]}"; do
-          BASE="kubernetes/$DIR"
-
-          if [ ! -d "$BASE" ]; then
-            echo "Missing directory: $BASE" >&2
-            exit 1
-          fi
-
-          FOUND=false
-          for FILE in "$BASE"/*.yml "$BASE"/*.yaml; do
-            [ -e "$FILE" ] || continue
-            FOUND=true
-            python3 -c "import yaml,sys; yaml.safe_load_all(open(sys.argv[1]))" "$FILE"
+        for d in ${{ inputs.deployment-dirs }}; do
+          for f in kubernetes/$d/*.y*ml; do
+            python3 -c "import yaml,sys; list(yaml.safe_load_all(open(sys.argv[1])))" "$f"
           done
-
-          if [ "$FOUND" = false ]; then
-            echo "No YAML files in $BASE" >&2
-            exit 1
-          fi
         done
-
-        echo "✔ ${{ inputs.stage }} YAML validation passed" >> "$GITHUB_STEP_SUMMARY"
